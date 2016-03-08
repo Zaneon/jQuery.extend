@@ -328,10 +328,7 @@ $.extend({
 	isOpera: $.monitor('opera'),
 
 	// 环境判断: 微信
-	isWeixin: $.monitor('weixin'),
-
-	// 环境判断: 友加
-	isUplus: $.monitor('uplus')
+	isWeixin: $.monitor('weixin')
 
 	// Constant Monitor End
 });
