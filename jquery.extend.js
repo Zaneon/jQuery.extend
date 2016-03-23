@@ -853,6 +853,8 @@ link: function( url, target, method ){
 
 	return url ? (function( judge ){
 
+		target = target === undefined ? 'self' : target;
+
 		if( target in judge.direct ){
 
 			return judge.direct[ target ].location.href = url;
