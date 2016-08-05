@@ -3,6 +3,9 @@
 // jQuery.Extend - Constant
 $.extend({
 
+	// 连调对象
+	dtd: $.Deferred(),
+
 	// 环境信息
 	ua: navigator.userAgent.toLowerCase(),
 
@@ -10,7 +13,7 @@ $.extend({
 	root: location.protocol + '//' + location.host + '/',
 
 	// 路由
-	path: location.pathname.replace(/\.([a-zA-Z])+/, '').match(/(\w|\-|\.)+/g) || [],
+	path: location.pathname.replace(/\.([a-zA-Z])+$/, '').match(/(\w|\-|\.)+/g) || [],
 
 	// 参数
 	params: (function( param ){
@@ -101,7 +104,7 @@ $.monitor = function( type, obj ){
 			if( ~$.inArray(type, ['json', JSON]) ){
 				return $.isPlainObject( obj );
 			}
-			return ~$.inArray( type, [String, Number, Boolean, Array, Object, Function]) ? obj.constructor === type : $.type( obj ) === type;
+			return ~$.inArray( type, [String, Number, Boolean, Array, Object, Date, Function]) ? obj.constructor === type : $.type( obj ) === type;
 		};
 
 	if( obj !== undefined ){
@@ -252,6 +255,34 @@ $.net = function( mode ){
 
 };
 
+
+/* !!
+ * Time Format
+ * ** *** **** ***** **** *** ** *
+ */
+$.extend({
+	timeFormat: function( time, fmt ){
+		var rule = {
+	        'M+': time.getMonth() + 1, //月份
+	        'd+': time.getDate(), //日
+	        'h+': time.getHours(), //小时
+	        'm+': time.getMinutes(), //分
+	        's+': time.getSeconds(), //秒
+	        'q+': Math.floor((time.getMonth() + 3) / 3), //季度
+	        'S': time.getMilliseconds() //毫秒
+	    };
+	    if( /(y+)/.test(fmt) ){
+			fmt = fmt.replace(RegExp.$1, (time.getFullYear() + '').substr(4 - RegExp.$1.length));
+		}
+	    for(var k in rule){
+	    	if( new RegExp('(' + k + ')').test(fmt) ){
+				fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (rule[k]) : (('00' + rule[k]).substr(('' + rule[k]).length)));
+			}
+		}
+	    return fmt;
+	}
+});
+
 $.extend({
 
 	// 类型判断: String
@@ -292,6 +323,14 @@ $.extend({
 	// 类型判断: Undefined
 	isUndefined: function( obj ){
 		return obj === undefined;
+	},
+
+	// 类型判断: Date
+	isDate: function( obj ){
+		if( obj !== undefined && $.monitor( Date, obj ) ){
+			return !~String(obj).indexOf('Invalid Date');
+		}
+		return false;
 	},
 
 	// 环境判断: Iphone
@@ -342,10 +381,13 @@ $.extend({
  * Callback: Function
  * ----- ----- -----
  */
-recursion: function( data, callback ){
+recursion: function( data, callback, final ){
 	if( data.length ){
 		callback( data.shift() );
 		return $.recursion( data, callback );
+	}
+	if( final ){
+		final();
 	}
 },
 
@@ -676,10 +718,9 @@ console: function(){
  */
 log: function( debug, mode ){
 
-	mode = mode || 'mobile';
+	debug = debug || 'debug', mode = mode || 'mobile';
 
 	switch( debug ){
-
 		case 'debug':
 			window.onerror = function( msg, url, line ){
 				$.console( {
@@ -691,6 +732,33 @@ log: function( debug, mode ){
 			}
 			break;
 	}
+},
+
+/* !!
+ * rule: reg
+ * callback: function
+ * ----- ----- -----
+ */
+rewrite: function( pattern, callback ){
+
+	return (function( cache, callback ){
+
+		( location.pathname ).replace( new RegExp( pattern ), function( word ){
+
+			cache.push( word );
+
+			return word;
+
+		});
+
+		if( cache.length ){
+
+			return callback.apply( this, cache );
+
+		}
+
+	})( [], callback || $.noop );
+
 },
 
 /* !!
@@ -771,14 +839,12 @@ cookie: function( name, value, time ){
 			return cookies[ name ];
 
 		}
-
 		return cookies;
 
 	})
 	(
 
 		function( cookies, result ){
-
 			$.each( cookies.split(';'), function( index, cookie ){
 
 				if( cookie ){
@@ -792,7 +858,6 @@ cookie: function( name, value, time ){
 				}
 
 			});
-
 			return result;
 
 		}
@@ -832,7 +897,6 @@ cookie: function( name, value, time ){
 					result += name + '=' + value + ';';
 
 				});
-
 				return result;
 
 			})
@@ -840,6 +904,138 @@ cookie: function( name, value, time ){
 
 		}
 
+	);
+
+},
+
+/* !!
+ * Storage Control
+ * ----- ----- -----
+ */
+storage: {
+
+	// 缓存器
+	cache: {},
+
+	// 数据封印
+	seal: function( data ){
+
+		if( $.isJson ){
+			data = JSON.stringify( data );
+		}
+
+		return data;
+
+	},
+
+	// 解除封印
+	dispel: function( data ){
+
+		try{
+			data = JSON.parse( data );
+		}
+		catch( e ){}
+
+		return data;
+	},
+
+	// 设值
+	set: function(){
+
+		var data = {};
+
+		if( !arguments.length ){
+			return data;
+		}
+
+		// Get Data
+		if( $.isJson( arguments[0] ) ){
+			data = arguments[0]
+		}
+		else{
+			data[ arguments[0] ] = arguments[1];
+		}
+
+		$.each( data, function( key, value ){
+			// To Cache
+			$.storage.cache[ key ] = value;
+			// Set Item
+			window.localStorage.setItem( key, $.storage.seal( value ) );
+		});
+
+	},
+
+	// 获取
+	get: function(){
+
+		if( !arguments.length ){
+			return undefined;
+		}
+
+		if( arguments.length === 1 ){
+			return $.storage.dispel( window.localStorage.getItem( arguments[0] ) );
+		}
+
+		var data = {};
+
+		$.each( arguments, function( index, key ){
+			// Get Item
+			data[ key ] = $.storage.dispel( window.localStorage.getItem( key ) );
+		});
+
+		return data;
+	},
+
+	// 删除
+	del: function(){
+
+		if( !arguments.length ){
+			return undefined;
+		}
+
+		$.each( arguments, function( index, key ){
+			// Get Item
+			window.localStorage.removeItem( key );
+		});
+
+	}
+
+},
+
+/* !!
+ * Fetch
+ * ----- ----- -----
+ */
+fetch: function( element, selector, check ){
+
+	return (function( filter, closest, exe ){
+
+		if( filter.length ){
+
+			return exe( filter, check );
+
+		}
+
+		if( closest.length ){
+
+			return exe( closest, check );
+
+		}
+
+		return $( element );
+
+	})
+
+	(
+		$( element ).filter( selector ),
+
+		$( element ).closest( selector ),
+
+		function( result, check ){
+
+			return check ? !!result.length : result;
+
+		}
 	);
 
 },
@@ -869,7 +1065,9 @@ link: function( url, target, method ){
 
 				return true;
 
-			})( $('<form action="' + url + '" method="' + ( ~$.inArray( method, judge.method ) ? method : 'get' ) + '" target="_' + target + '"></form>') );
+			})
+
+			( $('<form action="' + url + '" method="' + ( ~$.inArray( method, judge.method ) ? method : 'get' ) + '" target="_' + target + '"></form>') );
 
 		}
 
@@ -898,6 +1096,123 @@ link: function( url, target, method ){
 },
 
 /* !!
+ * Href Jump
+ * ----- ----- -----
+ */
+href: function( options ){
+
+	// 参数容错
+	options = $.extend( $.isJson( options ) ? options : {}, {
+		//
+	});
+
+	// 事件代理
+	$(document).on( options.event || 'click', options.selector || '*[href]', function( event ){
+
+		console.log( event );
+
+	});
+},
+
+/* !!
+* Form Control
+* ----- ----- -----
+*/
+form: function( form, options ){
+	    // 参数容错
+      form = $( form ), options = options || {};
+      // 配置
+      return (function( evolution, hand ){
+          var listener = function( event ){
+              return hand(
+                  // 事件
+                  event,
+                  // 参数
+                  evolution( form.serializeArray() ),
+                  // 属性
+                  $.extend( form.data(), {
+                      action: form.attr('action'),
+                      method: form.attr('method') || 'get'
+                  })
+              );
+
+          }
+          form.off('submit', listener).on('submit', listener);
+
+      })
+      (
+          // Evolution Data
+          function( data ){
+          var json = {};
+          $.each( data, function( index, one ){
+            json[ one.name ] = one.value;
+          });
+          return json;
+        },
+          // Event Hand
+          function( event, data, attr ){
+
+              if( ( $.isFunction( options.valid ) ? options.valid( form, data, attr ) : options.valid ) !== false ){
+
+                  // 穿越变量
+                  var cross = {};
+                  $.ajax({
+                          // 路径
+                          url: attr.action,
+                          // 参数
+                          data: data,
+                          // 成功
+                          success: options.success,
+                          // 失败
+                          error: options.error
+                  });
+
+              }
+
+              return false;
+          }
+      );
+	},
+/* !!
+ * History Control
+ * ----- ----- -----
+ */
+historyControl: function( options ){
+
+  	// 参数容错
+  	options = $.extend( $.isJson( options ) ? options : {}, {
+  		// 链接
+  		go: function( page, can ){
+  			// 是否后退
+  			can = can === undefined ? true : false;
+  			// History控制
+  			history[ can ? 'pushState' : 'replaceState' ]( history.state ? { page: page } : null, page, '/#/' + page );
+  			// 刷新
+  			location.replace('/#/' + page);
+  		},
+  		// 控制函数
+  		pop: function(){
+			// 注入函数
+  			if( $.popChannel ){
+  				$.popChannel( history.state );
+  			}
+  		},
+ 		// 初始化
+ 		init: function( origin, callback ){
+ 	 		callback( history.pushState({ page: origin }, origin, null) );
+ 		}
+  	});
+
+  	// 初始化
+ 	options.init( options.origin || 'index', function(){
+ 	 	// 赋值
+ 	 	$.go = options.go;
+ 	 	// 监听状态事件
+ 	 	window.addEventListener('popstate', options.pop);
+ 	});
+ },
+
+/* !!
  * @count: String
  * @time: MS
  * @def: Boolean
@@ -905,6 +1220,12 @@ link: function( url, target, method ){
  * ----- ----- -----
  */
 timeout: function( options ){
+
+	// 快捷
+	if( $.isFunction( options ) ){
+		// 数据
+		options = { callback: options };
+	}
 
 	// 参数容错
 	options          = options || {},
@@ -968,7 +1289,126 @@ timeout: function( options ){
 },
 
 /* !!
- * 
+ * 指令器：Command
+ * ----- ----- -----
+ */
+command: function( options ){
+	// 全局标记
+	$.action = $.action || {};
+	// 参数容错
+	options = $.extend( options || {}, {
+		// 事件
+		event: ['ready', 'click', 'focusin', 'focusout', 'keypress', 'keydown', 'keyup', 'change', 'submit', 'init'],
+		// 代理
+		agent: {
+			DOMNodeInserted: 'ready',
+			DOMNodeRemoved: 'destroy'
+		},
+		// 对象重置器
+		fetch: function( dom, type ){
+			// 参数容错
+			dom = $(dom), type = '[data-' + type + ']';
+			// Filter & Closest
+			var domFilter = dom.filter( type ), domClosest = dom.closest( type );
+			// 返回
+			return domFilter.length ? dom : ( domClosest.length ? domClosest : dom );
+		},
+		// 集成器
+		collect: function( direct ){
+			// 返回数据结构
+			return {
+				// 方法
+				hand: direct ? options.evolution( direct ) : $.noop,
+				// 参数
+				param: direct ? options.purify( direct ) : {}
+			};
+		},
+		// 净化[方法]
+		evolution: function( direct ){
+			// 解构
+			var hand = direct.match(/^\w+/);
+			// 检测
+			return $.action[ hand ] || $.noop;
+		},
+		// 净化[参数]
+		purify: function( direct ){
+			// 解构
+			var param = direct.match(/\((.*)?\)/);
+
+			if( param ){
+				// Json
+				try{
+					param = eval( param.shift() );
+				}
+				// String
+				catch(e){
+					param = param[1];
+				}
+			}
+			// 参数容错
+			return param || {};
+		},
+		// 动作
+		action: function( event ){
+
+			// 对象
+			var element = $( options.agent[ event.type ] ? this : options.fetch( event.target, event.type ) );
+			// 属性
+			var attr = element.data();
+			// 事件名
+			var fns = 'before execute after';
+			// 句柄, 参数
+			var hand = {}, param = {};
+			// 传播
+			var propagate = true;
+
+			// Refresh Agent
+			event.type = options.agent[ event.type ] || event.type;
+
+			// 数据解构
+			$.recursion( fns.split(' '), function( fn ){
+				// 骨头
+				var bone = options.collect( attr[ fn === 'execute' ? event.type : fn ] );
+				// 方法集成
+				hand[ fn ] = bone.hand;
+				// 参数集成
+				param[ fn ] = bone.param;
+			});
+
+			/* 注释：
+			 * Hand Process: before -> execute -> after
+			 * If any one ( return false ), Then stop running ..!
+			 * ------
+			 */
+			// Hand.Before
+			if( hand.before.apply( this, [element, param.before, event] ) !== false ){
+				// Propagate
+				propagate = hand.execute.apply( this, [element, param.execute, event] );
+				// Hand.Execute
+				if( propagate !== false ){
+					// Hand.After
+					hand.after.apply( this, [element, param.after, event] );
+				};
+			}
+
+			return propagate;
+		}
+	});
+
+	// 全局代理
+	$.dom.document
+		// 指令
+		.on( options.event.join(' '), options.action );
+	// 指令
+	$.each( options.agent, function( event, agent ){
+		// 代理
+		$.dom.document.on( event, '[data-' + agent + ']', options.action);
+	});
+
+},
+
+/* !!
+ * Template Engineer
  * ----- ----- -----
  */
 render: function( tree, data ){
@@ -1008,32 +1448,26 @@ compile: function( text, mode ){
  * Template EJS
  * ----- ----- -----
  */
-template: function( node, data, callback, mode ){
+template: function( element, data, callback, mode ){
 
 	try{
 		(function( html, data, callback ){
-
-			callback( node.html( ejs.render( html, data ) ), data );
-
+			callback( element.html( ejs.render( html, data ) ), data );
 		})
 		(
-			$.compile( node.html() ),
-
+			$.compile( element.html() ),
 			data.it || { it: data },
-
 			callback || $.noop
 		);
 	}
 	catch (e) {
-
 		console.log(e);
-
 	}
 
 },
 
 /* !!
- * 
+ *
  * ----- ----- -----
  */
 popup: function( options ){
