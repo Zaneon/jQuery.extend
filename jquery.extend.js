@@ -762,15 +762,16 @@ rewrite: function( pattern, callback ){
 },
 
 /* !!
+ * target: Element
  * time: stream
- * callback: function
+ * hand: function
  * ----- ----- -----
  */
-longTouch: function( time, hand ){
+longTouch: function( target, hand, time ){
 
-	return (function( time, can, out ){
+	return (function( target, time, can, out ){
 
-		$.dom.document
+		target
 
 			.on('touchstart', function(){
 
@@ -794,7 +795,7 @@ longTouch: function( time, hand ){
 
 				if( can ){
 
-					$.isFunction( hand ) ? hand() : alert( hand );
+					$.isFunction( hand ) ? hand( target ) : alert( hand );
 
 				}
 
@@ -804,7 +805,98 @@ longTouch: function( time, hand ){
 
 			});
 
-	})( time > 0 ? time : 3000, true, 0 );
+	})( $( target || document ), time > 0 ? time : 1000, true, 0 );
+
+},
+
+/* !!
+ * target: Element
+ * count: Number
+ * time: Stream
+ * hand: Function
+ * ----- ----- -----
+ */
+fastTouch: function( target, count, hand, time ){
+
+	target = $( target || document ),
+
+	count  = count > 0 ? count : 1,
+
+	time   = time > 0 ? time : 300;
+
+	var measure = 0, run = 0, out = 0;
+
+	var
+
+	init  = function(){
+
+		measure = count;
+
+		run = time;
+
+	},
+
+	clean = function( hand ){
+
+		clearInterval( out );
+
+		measure = 0;
+
+		run = 0;
+
+		out = 0;
+
+		if( hand ){
+
+			hand( target );
+
+		}
+
+	};
+
+	target
+
+		.on('touchstart', function( e ){
+
+			if( out ){
+
+				measure--;
+
+				if( measure > 0 ){
+
+					run = time;
+
+					return;
+
+				}
+
+				clean( hand );
+
+			}
+
+			else{
+
+				init();
+
+				out = setInterval(function(){
+
+					if( run > 0 ){
+
+						run -= 15;
+
+					}
+
+					else{
+
+						clean();
+
+					}
+
+				}, 15);
+
+			}
+
+		});
 
 },
 
