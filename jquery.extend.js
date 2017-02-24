@@ -130,7 +130,7 @@ $.monitor = function( type, obj ){
 					});
 				}
 				catch(e){
-					console.log(e);
+					// console.log(e);
 				}
 
 			}
@@ -1211,59 +1211,61 @@ href: function( options ){
 * ----- ----- -----
 */
 form: function( form, options ){
-	    // 参数容错
-      form = $( form ), options = options || {};
-      // 配置
-      return (function( evolution, hand ){
-          var listener = function( event ){
-              return hand(
-                  // 事件
-                  event,
-                  // 参数
-                  evolution( form.serializeArray() ),
-                  // 属性
-                  $.extend( form.data(), {
-                      action: form.attr('action'),
-                      method: form.attr('method') || 'get'
-                  })
-              );
+	// 参数容错
+	form = $( form ), options = options || {};
+		// 配置
+		return (function( evolution, hand ){
+			var listener = function( event ){
+				return hand(
+					// 事件
+					event,
+					// 参数
+					evolution( form.serializeArray() ),
+					// 属性
+					$.extend( form.data(), {
+						action: form.attr('action'),
+						method: form.attr('method') || 'get'
+					})
+				);
 
-          }
-          form.off('submit', listener).on('submit', listener);
+			}
+			form.off('submit', listener).on('submit', listener);
+		})
+		(
+			// Evolution Data
+			function( data ){
+				var json = {};
+				$.each( data, function( index, one ){
+					json[ one.name ] = one.value;
+				});
+				return json;
+			},
+			// Event Hand
+			function( event, data, attr ){
 
-      })
-      (
-          // Evolution Data
-          function( data ){
-          var json = {};
-          $.each( data, function( index, one ){
-            json[ one.name ] = one.value;
-          });
-          return json;
-        },
-          // Event Hand
-          function( event, data, attr ){
+				if( ( $.isFunction( options.valid ) ? options.valid( form, data, attr ) : options.valid ) !== false ){
 
-              if( ( $.isFunction( options.valid ) ? options.valid( form, data, attr ) : options.valid ) !== false ){
+					// 穿越变量
+					var cross = {};
 
-                  // 穿越变量
-                  var cross = {};
-                  $.ajax({
-                          // 路径
-                          url: attr.action,
-                          // 参数
-                          data: data,
-                          // 成功
-                          success: options.success,
-                          // 失败
-                          error: options.error
-                  });
+					$.ajax({
+						// 路径
+						url: attr.action,
+						// 类型
+						type: attr.method,
+						// 参数
+						data: data,
+						// 成功
+						success: options.success,
+						// 失败
+						error: options.error
+					});
 
-              }
+				}
 
-              return false;
-          }
-      );
+				return false;
+			}
+		);
 	},
 /* !!
  * History Control
@@ -1271,38 +1273,38 @@ form: function( form, options ){
  */
 historyControl: function( options ){
 
-  	// 参数容错
-  	options = $.extend( $.isJson( options ) ? options : {}, {
-  		// 链接
-  		go: function( page, can ){
-  			// 是否后退
-  			can = can === undefined ? true : false;
-  			// History控制
-  			history[ can ? 'pushState' : 'replaceState' ]( history.state ? { page: page } : null, page, '/#/' + page );
-  			// 刷新
-  			location.replace('/#/' + page);
-  		},
-  		// 控制函数
-  		pop: function(){
-			// 注入函数
-  			if( $.popChannel ){
-  				$.popChannel( history.state );
-  			}
-  		},
- 		// 初始化
- 		init: function( origin, callback ){
- 	 		callback( history.pushState({ page: origin }, origin, null) );
- 		}
-  	});
+	// 参数容错
+	options = $.extend( $.isJson( options ) ? options : {}, {
+		// 链接
+		go: function( page, can ){
+			// 是否后退
+			can = can === undefined ? true : false;
+			// History控制
+			history[ can ? 'pushState' : 'replaceState' ]( history.state ? { page: page } : null, page, '/#/' + page );
+			// 刷新
+			location.replace('/#/' + page);
+		},
+		// 控制函数
+		pop: function(){
+		// 注入函数
+			if( $.popChannel ){
+				$.popChannel( history.state );
+			}
+		},
+		// 初始化
+		init: function( origin, callback ){
+			callback( history.pushState({ page: origin }, origin, null) );
+		}
+	});
 
-  	// 初始化
- 	options.init( options.origin || 'index', function(){
- 	 	// 赋值
- 	 	$.go = options.go;
- 	 	// 监听状态事件
- 	 	window.addEventListener('popstate', options.pop);
- 	});
- },
+	// 初始化
+	options.init( options.origin || 'index', function(){
+		// 赋值
+		$.go = options.go;
+		// 监听状态事件
+		window.addEventListener('popstate', options.pop);
+	});
+},
 
 /* !!
  * @count: String
@@ -1390,7 +1392,7 @@ command: function( options ){
 	// 参数容错
 	options = $.extend( options || {}, {
 		// 事件
-		event: ['ready', 'click', 'focusin', 'focusout', 'keypress', 'keydown', 'keyup', 'change', 'submit', 'init'],
+		event: ['ready', 'click', 'mouseover', 'mouseout', 'mousemove', 'mouseenter', 'mouseleave', 'focusin', 'focusout', 'keypress', 'keydown', 'keyup', 'change', 'submit', 'init'],
 		// 代理
 		agent: {
 			DOMNodeInserted: 'ready',
